@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FYNTAS PRINTER</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root{
+  --ink:#0A0A0D; --ink-2:#16171D; --ink-3:#1C1E26; --paper:#FAFAFA;
+  /* Instagram signature gradient stops */
+  --ig-yellow:#FEDA75; --ig-orange:#FA7E1E; --ig-red:#D62976; --ig-purple:#962FBF; --ig-blue:#4F5BD5;
+  --ig-grad: linear-gradient(90deg, var(--ig-yellow), var(--ig-orange), var(--ig-red), var(--ig-purple), var(--ig-blue));
+  --ig-grad-btn: linear-gradient(90deg, var(--ig-orange), var(--ig-red), var(--ig-purple), var(--ig-blue));
+  --brass:#FA7E1E; --brass-2:#D62976; --brass-dim:#962FBF; --scan:#5FE0C6;
+  --red:#D2603F; --green:#5FCB7D;
+  --text-secondary:#D8D6E0; --muted:#A8A5B4; --line: rgba(255,255,255,0.16);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{
+  background: var(--ink);
+  font-family:'Space Grotesk', sans-serif; color: var(--paper);
+  display:flex; justify-content:center; min-height:100vh; padding: 40px 12px;
+  position:relative; overflow-x:hidden;
+}
+#bgCanvas{ position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+.mono{ font-family:'JetBrains Mono', monospace; }
+
+.phone{
+  width:390px; max-width:100%;
+  background: rgba(18,16,26,0.62);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border-radius: 38px; border: 1px solid rgba(255,255,255,0.28);
+  overflow:hidden; position:relative; z-index:1;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.35), 0 30px 90px rgba(0,0,0,0.55), 0 0 90px rgba(214,41,118,0.25);
+  min-height: 780px; display:flex; flex-direction:column;
+}
+.notch{ position:absolute; top:8px; left:50%; transform:translateX(-50%); width:110px; height:20px; background:#000; border-radius:0 0 12px 12px; z-index:20;}
+.statusbar{ height:42px; display:flex; align-items:center; justify-content:space-between; padding:0 24px; font-size:10.5px; color:var(--text-secondary); }
+.statusbar b{
+  background:var(--ig-grad); -webkit-background-clip:text; background-clip:text; color:transparent;
+  background-size:200% auto; animation: textFlow 5s linear infinite; font-weight:700;
+}
+@keyframes textFlow{ to{ background-position: 200% center; } }
+
+.langsw{ position:absolute; top:44px; right:16px; z-index:30; display:flex; background:rgba(255,255,255,0.1); border:1px solid var(--line); border-radius:20px; padding:3px; gap:2px; backdrop-filter: blur(6px);}
+.langsw button{ border:none; background:transparent; color:var(--text-secondary); font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700; padding:5px 11px; border-radius:16px; cursor:pointer; transition: all .15s ease;}
+.langsw button.on{ background: var(--ig-grad-btn); color:#fff;}
+
+
+.screen{ flex:1; display:none; flex-direction:column; padding:4px 24px 26px; overflow-y:auto; }
+.screen.active{ display:flex; animation: enter .45s cubic-bezier(.16,1,.3,1); }
+@keyframes enter{ from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:translateY(0);} }
+
+.eyebrow{ font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--brass); margin-bottom:8px; display:flex; align-items:center; gap:8px;}
+.eyebrow .dot{ width:5px; height:5px; border-radius:50%; background:var(--brass); animation:pulse 1.6s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+h1{ font-size:24px; font-weight:700; line-height:1.22; margin-bottom:6px; letter-spacing:-.01em;}
+.sub{ color:var(--text-secondary); font-size:14px; margin-bottom:20px; line-height:1.55;}
+
+/* Always-bilingual headings/subtitles — NOT affected by the language switcher.
+   Hindi and English are set to the SAME font-size/weight so neither looks
+   emphasized or washed out; they're distinguished only by a subtle divider. */
+.h1-hi{ font-size:22px; font-weight:700; line-height:1.3; margin-bottom:3px; letter-spacing:-.01em; color:var(--paper);}
+.h1-en{ font-size:22px; font-weight:600; line-height:1.3; margin-bottom:12px; color:var(--text-secondary);}
+.sub-hi{ color:var(--paper); font-size:14px; margin-bottom:3px; line-height:1.55; font-weight:500;}
+.sub-en{ color:var(--text-secondary); font-size:14px; margin-bottom:20px; line-height:1.55; font-weight:400;}
+
+.btn{
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  background: var(--ig-grad-btn);
+  background-size: 250% auto;
+  animation: btnFlow 6s linear infinite;
+  color:#fff; border:none; border-radius:14px; padding:16px;
+  font-family:'Space Grotesk',sans-serif; font-size:14.5px; font-weight:700; cursor:pointer;
+  width:100%; position:relative; overflow:hidden;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  box-shadow:0 8px 24px rgba(214,41,118,0.35), inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -6px 12px rgba(0,0,0,0.12);
+  transition: transform .1s ease, filter .15s ease, box-shadow .15s ease;
+}
+@keyframes btnFlow{ to{ background-position: 250% center; } }
+/* glossy top-half sheen */
+.btn::before{
+  content:""; position:absolute; top:0; left:0; right:0; height:52%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0));
+  border-radius:14px 14px 50% 50% / 14px 14px 100% 100%;
+  pointer-events:none;
+}
+/* animated diagonal shine sweep */
+.btn::after{
+  content:""; position:absolute; top:0; left:-60%; width:40%; height:100%;
+  background: linear-gradient(115deg, transparent, rgba(255,255,255,0.55), transparent);
+  transform: skewX(-20deg);
+  animation: shineSweep 3.2s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes shineSweep{
+  0%{ left:-60%; } 35%{ left:130%; } 100%{ left:130%; }
+}
+.btn:hover{ filter:brightness(1.08); box-shadow:0 10px 30px rgba(214,41,118,0.45), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -6px 12px rgba(0,0,0,0.12);}
+.btn.outline{ background:transparent; background-size:auto; animation:none; border:1.5px solid rgba(255,255,255,0.4); color:var(--paper); box-shadow:none; text-shadow:none;}
+.btn.outline::before, .btn.outline::after{ display:none; }
+.btn.outline:hover{ border-color:var(--ig-red); background:rgba(214,41,118,0.1);}
+.btn.ghost{ background:transparent; background-size:auto; animation:none; color:var(--text-secondary); font-weight:500; box-shadow:none; text-shadow:none;}
+.btn.ghost::before, .btn.ghost::after{ display:none; }
+.btn:disabled{ opacity:.4; pointer-events:none; animation:none; }
+/* click feedback: press-down + ripple */
+.btn.pressed, .card.pressed, .toggle.pressed{ transform: scale(0.95); filter:brightness(0.92); }
+.ripple{ position:absolute; border-radius:50%; background:rgba(255,255,255,0.6); transform:scale(0); animation:rip .5s ease-out; pointer-events:none; z-index:5;}
+@keyframes rip{ to{ transform:scale(3); opacity:0; } }
+
+/* ---- Instagram-style rotating gradient "story ring" for icons ---- */
+.icon-ring{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:46px; height:46px; border-radius:50%; flex-shrink:0;
+  background: conic-gradient(from 0deg, var(--ig-yellow), var(--ig-orange), var(--ig-red), var(--ig-purple), var(--ig-blue), var(--ig-yellow));
+  padding:2.5px; animation: ringSpin 5s linear infinite;
+}
+.icon-ring-inner{
+  width:100%; height:100%; border-radius:50%; background:var(--ink-2);
+  display:flex; align-items:center; justify-content:center; font-size:20px;
+  animation: iconPulse 2.4s ease-in-out infinite;
+}
+@keyframes ringSpin{ to{ transform:rotate(360deg); } }
+@keyframes iconPulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.1); } }
+.icon-ring.small{ width:36px; height:36px; }
+.icon-ring.small .icon-ring-inner{ font-size:16px; }
+
+
+input[type=tel], input[type=text]{
+  width:100%; border:1.5px solid var(--line); background:rgba(255,255,255,0.03); color:var(--paper);
+  border-radius:10px; padding:15px 16px; font-family:'JetBrains Mono',monospace; font-size:15px;
+  margin-bottom:14px; outline:none; transition:border-color .2s ease;
+}
+input:focus{ border-color:var(--brass); background:rgba(214,41,118,0.1);}
+.otp-row{ display:flex; gap:9px; margin-bottom:20px;}
+.otp-row input{ text-align:center; padding:14px 0; margin-bottom:0; width:44px; font-size:20px;}
+
+.grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:6px;}
+.card{
+  background:linear-gradient(160deg, rgba(255,255,255,0.09), rgba(255,255,255,0.02));
+  border:1px solid var(--line); border-radius:18px; padding:20px 15px; cursor:pointer;
+  transition:border-color .2s ease, transform .15s ease, box-shadow .2s ease; display:flex; flex-direction:column; gap:12px; position:relative; overflow:hidden;
+}
+.card:hover{ border-color:rgba(214,41,118,0.55); box-shadow:0 12px 30px rgba(214,41,118,0.2); transform:translateY(-3px); }
+.card .ic{ font-size:24px; } .card .lbl{ font-weight:700; font-size:14.5px;} .card .desc{ font-size:11px; color:var(--text-secondary); line-height:1.4;}
+
+.topbar{ display:flex; align-items:center; gap:12px; margin-bottom:16px;}
+.back{ width:36px; height:36px; border-radius:50%; border:1.5px solid var(--line); background:rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; color:var(--paper); transition: all .15s ease;}
+.back:hover{ border-color:var(--ig-red); transform:scale(1.08); }
+
+.instr{
+  background: linear-gradient(160deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  border: 1px solid rgba(214,41,118,0.35);
+  border-left: 3px solid var(--brass);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.22);
+}
+.instr .tag{ font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.14em; color:var(--brass); text-transform:uppercase; margin-bottom:9px; display:block; font-weight:700;}
+.instr .hi{ font-size:13.5px; color:var(--paper); line-height:1.6; margin-bottom:9px; font-weight:500;}
+.instr .en{ font-size:13.5px; color:var(--text-secondary); line-height:1.6; font-weight:400; padding-top:9px; border-top:1px solid rgba(246,242,232,0.1);}
+
+.upload-box{ border:1.5px dashed var(--line); border-radius:14px; padding:30px 16px; text-align:center; color:var(--muted); font-size:12.5px; margin-bottom:18px; background:rgba(255,255,255,0.02); cursor:pointer; transition:border-color .2s ease;}
+.upload-box:hover{ border-color:var(--brass); }
+.upload-box.filled{ border-color:var(--green); border-style:solid; color:var(--paper); }
+.upload-box .big{ font-size:28px; display:block; margin-bottom:10px;}
+
+.option-row{ display:flex; justify-content:space-between; align-items:center; padding:15px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
+.stepper{ display:flex; align-items:center; gap:14px;}
+.stepper button{ width:28px; height:28px; border-radius:50%; border:1.5px solid var(--line); background:transparent; color:var(--paper); font-size:15px; cursor:pointer;}
+.toggle-row{ display:flex; gap:8px;}
+.toggle{ padding:8px 14px; border-radius:8px; border:1.5px solid var(--line); font-size:12px; cursor:pointer; background:transparent; color:var(--paper); transition:all .15s ease;}
+.toggle.sel{ background:var(--ig-grad-btn); background-size:250% auto; color:#fff; border-color:transparent; font-weight:700; animation: btnFlow 6s linear infinite, popSel .3s ease; text-shadow:0 1px 2px rgba(0,0,0,0.25);}
+@keyframes popSel{ from{ transform:scale(0.85); } to{ transform:scale(1); } }
+
+.pricebar{ margin-top:auto; padding-top:18px; border-top:1px dashed var(--line);}
+.pricebar .row{ display:flex; justify-content:space-between; font-size:12.5px; color:var(--muted); margin-bottom:4px;}
+.pricebar .total{ display:flex; justify-content:space-between; font-size:21px; font-weight:700; margin:10px 0 18px; color:var(--brass);}
+
+.qr-frame{
+  width:200px; height:200px; margin:6px auto 18px; padding:8px;
+  background: var(--ig-grad); background-size:250% auto; animation: btnFlow 6s linear infinite;
+  border-radius:20px; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 10px 40px rgba(214,41,118,0.3);
+}
+.qr-frame > div{ background:#fff; border-radius:14px; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+.upi-id-box{ display:flex; align-items:center; justify-content:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--muted); margin-bottom:20px; background:rgba(255,255,255,0.03); border:1px solid var(--line); border-radius:10px; padding:10px;}
+.upi-id-box b{ color:var(--paper);}
+.center-note{ text-align:center; color:var(--muted); font-size:11px; margin-top:14px;}
+
+/* ---- PROCESS ANIMATION ---- */
+.proc-wrap{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:6px;}
+.proc-icon{ font-size:30px !important; margin-bottom:0 !important; animation: floaty 2s ease-in-out infinite; }
+@keyframes floaty{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-8px);} }
+.proc-title{ font-size:19px; font-weight:700; margin-bottom:2px; color:var(--paper);}
+.proc-title-en{ font-size:19px; font-weight:600; color:var(--text-secondary); margin-bottom:14px;}
+.proc-sub{ font-size:13.5px; color:var(--paper); font-weight:500; margin-bottom:4px;}
+.proc-sub-en{ font-size:13.5px; color:var(--text-secondary); font-weight:400; margin-bottom:28px;}
+
+.trail{ width:100%; display:flex; align-items:center; justify-content:space-between; position:relative; padding:0 6px; margin-top:10px;}
+.trail::before{ content:""; position:absolute; top:15px; left:22px; right:22px; height:2px; background:var(--line); z-index:0;}
+.trail .fillbar{ position:absolute; top:15px; left:22px; height:2px; background:var(--brass); z-index:1; width:0%; transition: width .6s ease;}
+.tnode{ position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:8px; flex:1;}
+.tnode .circ{ width:32px; height:32px; border-radius:50%; background:var(--ink-2); border:2px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:14px; transition: all .3s ease;}
+.tnode.done .circ{ background:var(--brass); border-color:var(--brass); color:var(--ink);}
+.tnode.active .circ{ border-color:var(--scan); box-shadow:0 0 0 5px rgba(95,224,198,0.15); animation:pulse2 1.2s infinite;}
+@keyframes pulse2{ 0%,100%{box-shadow:0 0 0 5px rgba(95,224,198,0.15);} 50%{box-shadow:0 0 0 9px rgba(95,224,198,0.05);} }
+.tnode .tlabel{ font-size:9px; color:var(--muted); text-align:center; max-width:60px;}
+
+/* ---- RESULT / SHARE screen ---- */
+.pdf-preview{ width:100%; aspect-ratio:1/1.3; background:#fff; border-radius:10px; margin-bottom:20px; box-shadow:0 14px 40px rgba(0,0,0,0.4); overflow:hidden;}
+.pdf-preview iframe{ width:100%; height:100%; border:none;}
+.share-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;}
+.share-btn{ display:flex; flex-direction:column; align-items:center; gap:6px; padding:14px 8px; border-radius:12px; border:1.5px solid var(--line); background:rgba(255,255,255,0.03); cursor:pointer; font-size:11.5px; color:var(--paper);}
+.share-btn .ic2{ font-size:22px;}
+.share-btn:hover{ border-color:var(--brass);}
+
+/* ---- THANK YOU ---- */
+.ty-wrap{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;}
+.tick{ width:78px; height:78px; border-radius:50%; background:rgba(95,203,125,0.12); border:2px solid var(--green); display:flex; align-items:center; justify-content:center; font-size:36px; color:var(--green); margin-bottom:20px; animation: pop .4s cubic-bezier(.34,1.56,.64,1);}
+@keyframes pop{ from{ transform:scale(0); opacity:0;} to{ transform:scale(1); opacity:1;} }
+
+/* ---- QUEUE / WAITING SCREEN ---- */
+.queue-wrap{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:10px;}
+.queue-badge{
+  width:84px; height:84px; border-radius:50%;
+  background:rgba(250,126,30,0.12); border:2px solid var(--brass);
+  display:flex; align-items:center; justify-content:center; margin-bottom:14px;
+}
+.queue-position{ font-family:'JetBrains Mono',monospace; font-size:30px; font-weight:700; color:var(--brass); }
+.queue-dots{ display:flex; gap:6px; margin:20px 0 6px; }
+.queue-dots span{ width:9px; height:9px; border-radius:50%; background:var(--brass); animation: bounce 1.2s infinite ease-in-out; }
+.queue-dots span:nth-child(2){ animation-delay:0.15s; }
+.queue-dots span:nth-child(3){ animation-delay:0.3s; }
+@keyframes bounce{ 0%,80%,100%{ transform:translateY(0); opacity:.4;} 40%{ transform:translateY(-9px); opacity:1;} }
+.queue-wait{ font-size:12.5px; color:var(--text-secondary); }
+.queue-alert{
+  margin-top:22px; background:rgba(210,96,63,0.1); border:1px solid rgba(210,96,63,0.3);
+  border-radius:12px; padding:12px 16px; font-size:12.5px; color:#E39B84;
+}
+
+.homebar{ width:120px; height:4px; background:rgba(243,239,228,0.3); border-radius:4px; margin:10px auto 0;}
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<script>
+/* ============================================================
+   Lightfall-inspired background — plain Canvas2D, no React/WebGL
+   needed. Same visual idea (glowing diagonal light streaks +
+   drifting ambient glow + twinkle + mouse interaction) recolored
+   with the Instagram palette so it blends with the rest of the UI.
+   ============================================================ */
+(function(){
+  const canvas = document.getElementById('bgCanvas');
+  const ctx = canvas.getContext('2d');
+  let W, H;
+  function resize(){ W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const COLORS = ['#FEDA75','#FA7E1E','#D62976','#962FBF','#4F5BD5']; // yellow→orange→pink→purple→blue
+  const BASE_BG = '#0A0A14';
+
+  let mouse = { x: W/2, y: H/2, active:false };
+  window.addEventListener('mousemove', e=>{ mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true; });
+  window.addEventListener('touchmove', e=>{ if(e.touches[0]){ mouse.x = e.touches[0].clientX; mouse.y = e.touches[0].clientY; mouse.active = true; } }, { passive:true });
+
+  function rand(a,b){ return a + Math.random()*(b-a); }
+
+  const STREAK_COUNT = 40;   // ~ streakCount
+  const MOUSE_RADIUS = 220;  // ~ mouseRadius
+  const MOUSE_STRENGTH = 18; // ~ mouseStrength
+
+  function makeStreak(){
+    return {
+      x: rand(0, W), y: rand(-H, 0),
+      len: rand(80, 220),        // ~ streakLength
+      width: rand(1.5, 3.2),     // ~ streakWidth
+      speed: rand(1.1, 2.8),     // ~ speed
+      angle: rand(55, 70) * Math.PI/180,
+      color: COLORS[Math.floor(Math.random()*COLORS.length)],
+      twinklePhase: Math.random()*Math.PI*2,
+      twinkleSpeed: rand(0.02, 0.05), // ~ twinkle
+    };
+  }
+  const streaks = Array.from({length: STREAK_COUNT}, makeStreak);
+
+  // ambient drifting color-glow blobs — ~ backgroundGlow
+  const blobs = COLORS.map((c,i)=>({ color:c, baseX: rand(0,1), baseY: rand(0,1), t: i*1.3, speed: rand(0.05,0.1) }));
+
+  ctx.fillStyle = BASE_BG; ctx.fillRect(0,0,W,H); // avoid a white flash before first frame
+
+  function draw(){
+    ctx.fillStyle = 'rgba(10,10,20,0.16)'; // trailing fade
+    ctx.fillRect(0,0,W,H);
+
+    blobs.forEach(b=>{
+      b.t += b.speed * 0.01;
+      const bx = (b.baseX + Math.sin(b.t)*0.15) * W;
+      const by = (b.baseY + Math.cos(b.t*0.8)*0.15) * H;
+      const r = Math.max(W,H) * 0.35;
+      const grad = ctx.createRadialGradient(bx,by,0,bx,by,r);
+      grad.addColorStop(0, b.color + '20');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0,0,W,H);
+    });
+
+    streaks.forEach(s=>{
+      s.twinklePhase += s.twinkleSpeed;
+      const twinkle = 0.5 + 0.5*Math.sin(s.twinklePhase);
+
+      let offsetX = 0;
+      if(mouse.active){
+        const dx = mouse.x - s.x, dy = mouse.y - s.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if(dist < MOUSE_RADIUS && dist > 0){
+          offsetX = (dx/dist) * (1 - dist/MOUSE_RADIUS) * MOUSE_STRENGTH;
+        }
+      }
+
+      const dx2 = Math.cos(s.angle) * s.len, dy2 = Math.sin(s.angle) * s.len;
+      const x1 = s.x + offsetX, y1 = s.y, x2 = x1 + dx2, y2 = y1 + dy2;
+
+      const grad = ctx.createLinearGradient(x1,y1,x2,y2);
+      grad.addColorStop(0, 'transparent');
+      grad.addColorStop(1, s.color);
+
+      ctx.save();
+      ctx.globalAlpha = 0.5 + 0.45*twinkle;
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = s.width;
+      ctx.shadowColor = s.color;
+      ctx.shadowBlur = 12;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      ctx.restore();
+
+      s.x += Math.cos(s.angle) * s.speed;
+      s.y += Math.sin(s.angle) * s.speed;
+
+      if(s.y - s.len > H || s.x - s.len > W){
+        const fresh = makeStreak();
+        Object.assign(s, fresh, { x: rand(0, W), y: rand(-200, -20) });
+      }
+    });
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span>9:41</span><span><b>FYNTAS</b> · Kiosk #<span id="kiosk-label">KSK-014</span></span></div>
+  <div class="langsw">
+    <button id="lang-en" onclick="setLang('en')">EN</button>
+    <button id="lang-hi" class="on" onclick="setLang('hi')">हिं</button>
+  </div>
+
+  <!-- LANDING -->
+  <div class="screen active" id="s-landing">
+    <div class="eyebrow"><span class="dot"></span><span class="i18n" data-en="Kiosk Connected" data-hi="कियॉस्क जुड़ा हुआ है">Kiosk Connected</span></div>
+    <div class="h1-hi"><span style="color:var(--brass)">FYNTAS</span> प्रिंटर में आपका स्वागत है</div>
+    <div class="h1-en">Welcome to <span style="color:var(--brass)">FYNTAS</span> Printer</div>
+    <div class="sub-hi">आगे बढ़ने के लिए अपना मोबाइल नंबर दर्ज करें। OTP से सुरक्षित लॉगिन होगा।</div>
+    <div class="sub-en">Enter your mobile number to continue. Login is secured with OTP.</div>
+
+    <input type="tel" placeholder="10-digit mobile number" id="mobile-input" maxlength="10">
+    <button class="btn" onclick="sendOtp()" id="btn-send-otp"><span class="i18n" data-en="Send OTP" data-hi="OTP भेजें">OTP Bhejein</span> →</button>
+    <div class="center-note" id="otp-status"></div>
+  </div>
+
+  <!-- OTP -->
+  <div class="screen" id="s-otp">
+    <div class="topbar"><div class="back" onclick="go('s-landing')">←</div><div class="eyebrow" style="margin:0;">Verify</div></div>
+    <div class="h1-hi">OTP दर्ज करें</div>
+    <div class="h1-en">Enter OTP</div>
+    <div class="sub-hi" id="otp-sub-hi">कोड भेजा गया है</div>
+    <div class="sub-en" id="otp-sub-en">Code has been sent</div>
+    <div class="otp-row">
+      <input type="text" maxlength="1" class="otp-d"><input type="text" maxlength="1" class="otp-d">
+      <input type="text" maxlength="1" class="otp-d"><input type="text" maxlength="1" class="otp-d">
+      <input type="text" maxlength="1" class="otp-d"><input type="text" maxlength="1" class="otp-d">
+    </div>
+    <button class="btn" onclick="verifyOtp()"><span class="i18n" data-en="Verify & Continue" data-hi="सत्यापित करें और आगे बढ़ें">Verify Karke Aage Badhein</span> →</button>
+    <div class="center-note" id="verify-status"></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="screen" id="s-dashboard">
+    <div class="eyebrow"><span class="dot"></span><span id="greet-name">Namaste</span></div>
+    <div class="h1-hi">आपको क्या करना है?</div>
+    <div class="h1-en">What would you like to do?</div>
+    <div class="sub-hi">एक सेवा चुनें</div>
+    <div class="sub-en">Choose a service</div>
+    <div class="grid">
+      <div class="card" onclick="openService('print')"><div class="ic"><span class="icon-ring"><span class="icon-ring-inner">🖨️</span></span></div><div class="lbl i18n" data-en="Print" data-hi="प्रिंट">Print</div><div class="desc i18n" data-en="Upload a file & print" data-hi="फ़ाइल अपलोड करके प्रिंट करें">File upload karke print karein</div></div>
+      <div class="card" onclick="openService('scan')"><div class="ic"><span class="icon-ring"><span class="icon-ring-inner">📄</span></span></div><div class="lbl i18n" data-en="Scan" data-hi="स्कैन">Scan</div><div class="desc i18n" data-en="Get a PDF on your phone" data-hi="अपने फ़ोन पर PDF प्राप्त करें">Apne phone par PDF payein</div></div>
+      <div class="card" onclick="openService('copy')"><div class="ic"><span class="icon-ring"><span class="icon-ring-inner">📑</span></span></div><div class="lbl i18n" data-en="Xerox / Copy" data-hi="ज़ेरॉक्स / कॉपी">Xerox / Copy</div><div class="desc i18n" data-en="Copy a physical document" data-hi="किसी दस्तावेज़ की कॉपी निकालें">Document ki copy nikalein</div></div>
+      <div class="card" onclick="openService('id_card')"><div class="ic"><span class="icon-ring"><span class="icon-ring-inner">🪪</span></span></div><div class="lbl i18n" data-en="ID Card Copy" data-hi="आईडी कार्ड कॉपी">ID Card Copy</div><div class="desc i18n" data-en="Aadhaar / PAN / Voter ID" data-hi="आधार / पैन / वोटर आईडी">Aadhaar / PAN / Voter ID</div></div>
+    </div>
+  </div>
+
+  <!-- PRINT (file upload direct on website) -->
+  <div class="screen" id="s-print">
+    <div class="topbar"><div class="back" onclick="go('s-dashboard')">←</div><div class="eyebrow" style="margin:0;">Print</div></div>
+    <div class="h1-hi">अपनी फ़ाइल अपलोड करें</div>
+    <div class="h1-en">Upload your file</div>
+
+    <div class="instr"><span class="tag">Instructions</span>
+      <div class="hi">PDF, JPG या Word फ़ाइल चुनें। अपलोड होते ही यह क्लाउड पर सुरक्षित सेव हो जाएगी।</div>
+      <div class="en">Select a PDF, JPG, or Word file. It's safely saved to the cloud as soon as it's uploaded.</div>
+    </div>
+
+    <label class="upload-box" id="upload-box-print" for="file-print">
+      <span class="big"><span class="icon-ring"><span class="icon-ring-inner">⬆️</span></span></span>
+      <span id="upload-print-text" class="i18n" data-en="Tap to select a file" data-hi="फ़ाइल चुनने के लिए टैप करें">File select karne ke liye tap karein</span>
+    </label>
+    <input type="file" id="file-print" style="display:none" onchange="handleFile(event,'print')">
+
+    <div class="option-row"><span class="i18n" data-en="Copies" data-hi="कॉपियाँ">Copies</span>
+      <div class="stepper"><button onclick="changeCopies(-1)">−</button><b id="print-copies">1</b><button onclick="changeCopies(1)">+</button></div></div>
+    <div class="option-row"><span class="i18n" data-en="Color" data-hi="रंग">Color</span>
+      <div class="toggle-row"><div class="toggle sel" onclick="selectToggle(this,'color','bw')">B/W</div><div class="toggle" onclick="selectToggle(this,'color','color')">Color</div></div></div>
+    <div class="option-row"><span class="i18n" data-en="Print Sides" data-hi="प्रिंट साइड">Print Sides</span>
+      <div class="toggle-row"><div class="toggle sel" onclick="selectToggle(this,'duplex','single')">Single-side</div><div class="toggle" onclick="selectToggle(this,'duplex','double')">Double-side</div></div></div>
+    <div class="option-row" id="pages-info-row" style="display:none;">
+      <span class="i18n" data-en="Pages detected" data-hi="Pages detect hue">Pages detect hue</span>
+      <b id="pages-detected">1</b>
+    </div>
+
+    <div class="pricebar">
+      <div class="row"><span class="i18n" data-en="Estimated cost" data-hi="अनुमानित लागत">Anumanit kharch</span><span id="print-price-line">₹4.00</span></div>
+      <div class="total"><span class="i18n" data-en="Total" data-hi="कुल">Total</span><span id="print-price-total">₹4</span></div>
+      <button class="btn" id="print-pay-btn" onclick="goToPay('print')" disabled><span class="i18n" data-en="Pay & Print" data-hi="भुगतान करें और प्रिंट करें">Pay & Print</span> →</button>
+    </div>
+  </div>
+
+  <!-- SCAN -->
+  <div class="screen" id="s-scan">
+    <div class="topbar"><div class="back" onclick="go('s-dashboard')">←</div><div class="eyebrow" style="margin:0;">Scan</div></div>
+    <div class="h1-hi">दस्तावेज़ स्कैन करें</div>
+    <div class="h1-en">Scan a document</div>
+    <div class="instr"><span class="tag">Instructions</span>
+      <div class="hi">भुगतान के बाद दस्तावेज़ को कियॉस्क की स्कैनर ट्रे में रखें। स्कैन होते ही PDF इसी स्क्रीन पर दिखेगी।</div>
+      <div class="en">After payment, place your document on the kiosk's scanner tray. The PDF will appear right here once scanning is done.</div>
+    </div>
+    <div class="upload-box"><span class="icon-ring small"><span class="icon-ring-inner">📠</span></span> <span class="i18n" data-en="Scanner ready after payment" data-hi="भुगतान के बाद स्कैनर तैयार होगा">Payment ke baad scanner ready hoga</span></div>
+    <div class="pricebar">
+      <div class="row"><span class="i18n" data-en="Scan charge" data-hi="स्कैन शुल्क">Scan charge</span><span id="scan-price-line">₹5.00</span></div>
+      <div class="total"><span class="i18n" data-en="Total" data-hi="कुल">Total</span><span id="scan-price-total">₹5</span></div>
+      <button class="btn" onclick="goToPay('scan')"><span class="i18n" data-en="Pay & Start Scan" data-hi="भुगतान करें और स्कैन शुरू करें">Pay & Start Scan</span> →</button>
+    </div>
+  </div>
+
+  <!-- COPY -->
+  <div class="screen" id="s-copy">
+    <div class="topbar"><div class="back" onclick="go('s-dashboard')">←</div><div class="eyebrow" style="margin:0;">Xerox / Copy</div></div>
+    <div class="h1-hi">दस्तावेज़ की कॉपी करें</div>
+    <div class="h1-en">Copy a document</div>
+    <div class="instr"><span class="tag">Instructions</span>
+      <div class="hi">भुगतान के बाद दस्तावेज़ को फ़ीडर ट्रे में रखें।</div>
+      <div class="en">After payment, place your document in the feeder tray.</div>
+    </div>
+    <div class="option-row"><span class="i18n" data-en="Copies" data-hi="कॉपियाँ">Copies</span>
+      <div class="stepper"><button onclick="changeCopies(-1)">−</button><b id="copy-copies">1</b><button onclick="changeCopies(1)">+</button></div></div>
+    <div class="pricebar">
+      <div class="row"><span class="i18n" data-en="1 page" data-hi="1 पेज">1 page</span><span id="copy-price-line">₹3.00</span></div>
+      <div class="total"><span class="i18n" data-en="Total" data-hi="कुल">Total</span><span id="copy-price-total">₹3</span></div>
+      <button class="btn" onclick="goToPay('copy')"><span class="i18n" data-en="Pay & Copy" data-hi="भुगतान करें और कॉपी करें">Pay & Copy</span> →</button>
+    </div>
+  </div>
+
+  <!-- ID CARD -->
+  <div class="screen" id="s-id_card">
+    <div class="topbar"><div class="back" onclick="go('s-dashboard')">←</div><div class="eyebrow" style="margin:0;">ID Card Copy</div></div>
+    <div class="h1-hi">आईडी दस्तावेज़</div>
+    <div class="h1-en">ID document</div>
+    <div class="instr"><span class="tag">Instructions</span>
+      <div class="hi">भुगतान के बाद आधार/पैन को स्कैनर ग्लास पर रखें — दोनों तरफ़ स्कैन होकर एक ही A4 पेज पर आएंगी।</div>
+      <div class="en">After payment, place your Aadhaar/PAN on the scanner glass — both sides will be scanned onto a single A4 page.</div>
+    </div>
+    <div class="option-row"><span class="i18n" data-en="Layout" data-hi="लेआउट">Layout</span>
+      <div class="toggle-row"><div class="toggle sel" onclick="selectToggle(this,'layout','side')">Side-Side</div><div class="toggle" onclick="selectToggle(this,'layout','stack')">Top-Bottom</div></div></div>
+    <div class="option-row"><span class="i18n" data-en="Output" data-hi="आउटपुट">Output</span>
+      <div class="toggle-row"><div class="toggle sel" onclick="selectToggle(this,'output','print')">Print</div><div class="toggle" onclick="selectToggle(this,'output','pdf')">PDF</div></div></div>
+    <div class="pricebar">
+      <div class="row"><span class="i18n" data-en="Front + Back" data-hi="आगे + पीछे">Front + Back</span><span id="idcard-price-line">₹10.00</span></div>
+      <div class="total"><span class="i18n" data-en="Total" data-hi="कुल">Total</span><span id="idcard-price-total">₹10</span></div>
+      <button class="btn" onclick="goToPay('id_card')"><span class="i18n" data-en="Pay & Continue" data-hi="भुगतान करें और आगे बढ़ें">Pay & Continue</span> →</button>
+    </div>
+  </div>
+
+  <!-- PAYMENT -->
+  <div class="screen" id="s-pay">
+    <div class="topbar"><div class="back" onclick="go('s-dashboard')">←</div><div class="eyebrow" style="margin:0;">Payment</div></div>
+    <div class="h1-hi" style="text-align:center;">भुगतान के लिए स्कैन करें</div>
+    <div class="h1-en" style="text-align:center;">Scan to pay</div>
+    <div class="sub-hi" style="text-align:center;">कोई भी UPI ऐप खोलकर स्कैन करें</div>
+    <div class="sub-en" style="text-align:center;">Open any UPI app and scan</div>
+    <div class="qr-frame"><div id="qrcode"></div></div>
+    <div id="pay-amount" style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;margin-bottom:10px;color:var(--brass);">₹0.00</div>
+    <div class="upi-id-box">UPI ID: <b>9984389923@ybl</b></div>
+    <button class="btn" onclick="confirmPayment()">✓ <span class="i18n" data-en="Simulate: Payment Received" data-hi="सिम्युलेट करें: भुगतान प्राप्त हुआ">Simulate: Payment Mil Gaya</span></button>
+    <div class="center-note i18n" data-en="Payment is detected automatically" data-hi="भुगतान अपने आप पहचान लिया जाएगा">Payment automatically detect ho jayega</div>
+  </div>
+
+  <!-- QUEUE / WAITING (shown when other orders are ahead at this kiosk) -->
+  <div class="screen" id="s-queue">
+    <div class="queue-wrap">
+      <div class="queue-badge"><span class="icon-ring"><span class="icon-ring-inner">⏳</span></span></div>
+      <div class="h1-hi">आपका प्रिंट कतार में है</div>
+      <div class="h1-en">Your print is in queue</div>
+      <div class="queue-position">#<span id="queue-pos">2</span></div>
+      <div class="queue-dots"><span></span><span></span><span></span></div>
+      <div class="queue-wait" id="queue-wait-hi">अनुमानित इंतज़ार: ~45 सेकंड</div>
+      <div class="queue-wait" id="queue-wait-en">Estimated wait: ~45 seconds</div>
+      <div class="queue-alert" id="queue-alert" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- PROCESSING ANIMATION -->
+  <div class="screen" id="s-process">
+    <div class="proc-wrap">
+      <span class="icon-ring" style="width:64px;height:64px;margin-bottom:8px;"><span class="icon-ring-inner proc-icon" id="proc-icon" style="font-size:30px;">☁️</span></span>
+      <div class="proc-title" id="proc-title">प्रोसेस हो रहा है...</div>
+      <div class="proc-title-en" id="proc-title-en">Processing...</div>
+      <div class="proc-sub" id="proc-sub-hi">आपका दस्तावेज़ प्रोसेस हो रहा है</div>
+      <div class="proc-sub-en" id="proc-sub-en">Your document is being processed</div>
+
+      <div class="trail">
+        <div class="fillbar" id="trail-fill"></div>
+        <div class="tnode" id="tn-0"><div class="circ">📤</div><div class="tlabel i18n" data-en="Received" data-hi="प्राप्त हुआ">Mil Gaya</div></div>
+        <div class="tnode" id="tn-1"><div class="circ">☁️</div><div class="tlabel i18n" data-en="In Cloud" data-hi="क्लाउड में">Cloud Mein</div></div>
+        <div class="tnode" id="tn-2"><div class="circ">🖨️</div><div class="tlabel" id="tn-2-label">Printer</div></div>
+        <div class="tnode" id="tn-3"><div class="circ">✅</div><div class="tlabel i18n" data-en="Done" data-hi="पूर्ण">Done</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULT + SHARE (scan / id-pdf) -->
+  <div class="screen" id="s-result">
+    <div class="topbar"><div class="eyebrow" style="margin:0;">Ready</div></div>
+    <div class="h1-hi">आपकी PDF तैयार है</div>
+    <div class="h1-en">Your PDF is ready</div>
+    <div class="pdf-preview"><iframe id="pdf-frame" src=""></iframe></div>
+    <div class="sub-hi">नीचे से शेयर करें, या ट्रे से प्रिंटेड कॉपी ले लें</div>
+    <div class="sub-en">Share it below, or collect the printed copy from the tray</div>
+    <div class="share-grid">
+      <div class="share-btn" onclick="shareResult()"><span class="ic2"><span class="icon-ring small"><span class="icon-ring-inner">📤</span></span></span><span class="i18n" data-en="Share" data-hi="शेयर करें">Share</span></div>
+      <div class="share-btn" onclick="shareWhatsapp()"><span class="ic2"><span class="icon-ring small"><span class="icon-ring-inner">💬</span></span></span>WhatsApp</div>
+      <div class="share-btn" onclick="shareEmail()"><span class="ic2"><span class="icon-ring small"><span class="icon-ring-inner">📧</span></span></span><span class="i18n" data-en="Email" data-hi="ईमेल">Email</span></div>
+      <div class="share-btn" onclick="downloadResult()"><span class="ic2"><span class="icon-ring small"><span class="icon-ring-inner">⬇️</span></span></span><span class="i18n" data-en="Download" data-hi="डाउनलोड">Download</span></div>
+    </div>
+    <button class="btn outline" onclick="go('s-dashboard')"><span class="i18n" data-en="Back to menu" data-hi="मेनू पर वापस जाएं">Menu par wapas</span></button>
+  </div>
+
+  <!-- THANK YOU (no token) -->
+  <div class="screen" id="s-thankyou">
+    <div class="ty-wrap">
+      <div class="tick">✓</div>
+      <div class="h1-hi">धन्यवाद!</div>
+      <div class="h1-en">Thank you!</div>
+      <div class="sub-hi" style="text-align:center;">कृपया नीचे ट्रे से अपना प्रिंटआउट ले लें</div>
+      <div class="sub-en" style="text-align:center;">Please collect your printout from the tray below</div>
+      <button class="btn" style="width:auto;padding:14px 30px;margin-top:20px;" onclick="go('s-dashboard')"><span class="i18n" data-en="Back to menu" data-hi="मेनू पर वापस जाएं">Menu par wapas</span></button>
+    </div>
+  </div>
+
+  <div class="homebar"></div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG — apni details yahan daalein
+   ============================================================ */
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';          // e.g. https://xxxx.supabase.co
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // Supabase > Settings > API > anon public key
+
+// ---- MULTI-LOCATION SUPPORT ----
+// Each location's QR code points to this same website but with a different
+// ?kiosk= tag, e.g.:
+//   https://yourusername.github.io/fyntas-printer/?kiosk=DELHI-01
+//   https://yourusername.github.io/fyntas-printer/?kiosk=MUMBAI-01
+// This way one website + one codebase serves all 5 locations, and each
+// order is tagged with the correct kiosk_id so the right location's agent
+// picks it up.
+const urlParams = new URLSearchParams(window.location.search);
+const KIOSK_ID = urlParams.get('kiosk') || 'KSK-014'; // fallback for testing without a query param
+
+const UPI_ID = '9984389923@ybl';
+const UPI_NAME = 'FYNTAS PRINTER';
+const STORAGE_BUCKET = 'kiosk-uploads';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// pdf.js needs a worker script — point it to the matching CDN version
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.worker.min.js';
+
+/* ============================================================
+   GLOBAL STATE
+   ============================================================ */
+let mobile = '';
+let currentService = 'print';
+let uploadedFile = null;
+let uploadedFilePath = null;
+let copies = 1;
+let colorMode = 'bw';
+let duplexMode = 'single'; // 'single' | 'double'
+let detectedPages = 1;      // actual PDF page count, detected on upload
+let layout = 'side';
+let output = 'print';
+let currentJobId = null;
+let pollTimer = null;
+
+/* ---- LIVE PRICING — comes from the "settings" table so Admin Panel
+   changes apply instantly without touching this code ---- */
+let PRICING = { print_bw: 4, print_color: 8, scan: 5, copy: 3, id_card: 10 }; // fallback defaults
+
+async function loadPricing(){
+  try{
+    const { data, error } = await sb.from('settings').select('value').eq('key','pricing').single();
+    if(!error && data && data.value){
+      PRICING = { ...PRICING, ...data.value };
+    }
+  }catch(e){ console.warn('Using default pricing — could not reach Supabase settings table.'); }
+  refreshAllPriceDisplays();
+}
+
+function priceForService(service){
+  if(service === 'print') return colorMode === 'color' ? PRICING.print_color : PRICING.print_bw;
+  if(service === 'copy') return PRICING.copy;
+  if(service === 'scan') return PRICING.scan;
+  if(service === 'id_card') return PRICING.id_card;
+  return 0;
+}
+
+function refreshAllPriceDisplays(){
+  const printTotal = priceForService('print') * copies;
+  document.getElementById('print-price-line').textContent = `₹${priceForService('print').toFixed(2)} × ${copies}`;
+  document.getElementById('print-price-total').textContent = '₹' + printTotal;
+
+  document.getElementById('scan-price-line').textContent = '₹' + priceForService('scan').toFixed(2);
+  document.getElementById('scan-price-total').textContent = '₹' + priceForService('scan');
+
+  const copyTotal = priceForService('copy') * copies;
+  document.getElementById('copy-price-line').textContent = `₹${priceForService('copy').toFixed(2)} × ${copies}`;
+  document.getElementById('copy-price-total').textContent = '₹' + copyTotal;
+
+  document.getElementById('idcard-price-line').textContent = '₹' + priceForService('id_card').toFixed(2);
+  document.getElementById('idcard-price-total').textContent = '₹' + priceForService('id_card');
+}
+
+/* ============================================================
+   NAVIGATION + BUTTON CLICK FEEDBACK
+   ============================================================ */
+function go(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelector('.phone').scrollTop = 0;
+}
+document.getElementById('kiosk-label').textContent = KIOSK_ID;
+setLang('hi'); // Hindi is the default display language; toggle switches this in place, on any screen
+loadPricing(); // fetch live prices from Supabase settings table (Admin Panel controlled)
+
+document.addEventListener('click', (e)=>{
+  const el = e.target.closest('.btn, .card, .toggle, .share-btn');
+  if(!el) return;
+  el.classList.add('pressed');
+  setTimeout(()=> el.classList.remove('pressed'), 140);
+  const rip = document.createElement('span');
+  rip.className = 'ripple';
+  const rect = el.getBoundingClientRect();
+  rip.style.left = (e.clientX - rect.left - 10) + 'px';
+  rip.style.top = (e.clientY - rect.top - 10) + 'px';
+  rip.style.width = rip.style.height = '20px';
+  el.style.position = el.style.position || 'relative';
+  el.appendChild(rip);
+  setTimeout(()=> rip.remove(), 500);
+});
+
+function setLang(l){
+  document.querySelectorAll('.i18n').forEach(el=>{
+    const v = el.dataset[l]; if(v) el.textContent = v;
+  });
+  document.getElementById('lang-en').classList.toggle('on', l==='en');
+  document.getElementById('lang-hi').classList.toggle('on', l==='hi');
+}
+
+/* ============================================================
+   OTP LOGIN
+   ============================================================ */
+async function callOtpFunction(payload){
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/otp`, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
+async function sendOtp(){
+  const val = document.getElementById('mobile-input').value.trim();
+  if(!/^[0-9]{10}$/.test(val)){
+    document.getElementById('otp-status').textContent = 'Sahi 10-digit number daalein / Enter a valid 10-digit number';
+    return;
+  }
+  mobile = val;
+  document.getElementById('btn-send-otp').disabled = true;
+  document.getElementById('otp-status').textContent = 'OTP bheja ja raha hai...';
+  const r = await callOtpFunction({ action:'send', mobile });
+  document.getElementById('btn-send-otp').disabled = false;
+  if(r.success){
+    document.getElementById('otp-sub-hi').textContent = `${mobile} पर 6-अंकों का कोड भेजा गया है`;
+  document.getElementById('otp-sub-en').textContent = `A 6-digit code has been sent to ${mobile}`;
+    go('s-otp');
+  } else {
+    document.getElementById('otp-status').textContent = 'Error: ' + (r.error || 'try again');
+  }
+}
+
+async function verifyOtp(){
+  const digits = [...document.querySelectorAll('.otp-d')].map(i=>i.value).join('');
+  if(digits.length !== 6){ document.getElementById('verify-status').textContent='6 digit code daalein'; return; }
+  const r = await callOtpFunction({ action:'verify', mobile, code: digits });
+  if(r.success){
+    document.getElementById('greet-name').textContent = 'Namaste, ' + mobile;
+    go('s-dashboard');
+  } else {
+    document.getElementById('verify-status').textContent = 'Galat ya expired OTP / Invalid or expired OTP';
+  }
+}
+document.querySelectorAll('.otp-d').forEach((el,i,arr)=>{
+  el.addEventListener('input', ()=>{ if(el.value && arr[i+1]) arr[i+1].focus(); });
+});
+
+/* ============================================================
+   SERVICE SCREENS
+   ============================================================ */
+function openService(type){
+  currentService = type;
+  copies = 1; colorMode='bw'; layout='side'; output='print';
+  duplexMode = 'single'; detectedPages = 1;
+  uploadedFile = null; uploadedFilePath = null;
+  const pInfo = document.getElementById('pages-info-row');
+  if(pInfo) pInfo.style.display = 'none';
+  const box = document.getElementById('upload-box-print');
+  const txt = document.getElementById('upload-print-text');
+  if(box) box.classList.remove('filled');
+  if(txt){ txt.setAttribute('data-en','Tap to select a file'); txt.setAttribute('data-hi','फ़ाइल चुनने के लिए टैप करें'); txt.textContent = 'फ़ाइल चुनने के लिए टैप करें'; }
+  const payBtn = document.getElementById('print-pay-btn');
+  if(payBtn) payBtn.disabled = true;
+  document.querySelectorAll('#s-print .toggle-row').forEach(row=>{
+    row.querySelectorAll('.toggle').forEach((t,i)=> t.classList.toggle('sel', i===0));
+  });
+  go('s-' + type);
+}
+
+function selectToggle(el, group, value){
+  el.parentElement.querySelectorAll('.toggle').forEach(t=>t.classList.remove('sel'));
+  el.classList.add('sel');
+  if(group==='color') colorMode = value;
+  if(group==='layout') layout = value;
+  if(group==='output') output = value;
+  if(group==='duplex') duplexMode = value;
+  refreshAllPriceDisplays();
+}
+
+function changeCopies(delta){
+  copies = Math.max(1, copies + delta);
+  ['print-copies','copy-copies'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.textContent = copies;
+  });
+  refreshAllPriceDisplays();
+}
+
+/* ---- Print: direct file upload to Supabase Storage + real page counting ---- */
+async function handleFile(evt, which){
+  const file = evt.target.files[0];
+  if(!file) return;
+  uploadedFile = file;
+
+  const box = document.getElementById('upload-box-print');
+  const txt = document.getElementById('upload-print-text');
+  box.classList.add('filled');
+  txt.textContent = '⏳ Reading file...';
+
+  // ---- Count actual pages ----
+  detectedPages = 1;
+  if(file.type === 'application/pdf'){
+    try{
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      detectedPages = pdf.numPages;
+    }catch(e){
+      console.warn('Could not count PDF pages, defaulting to 1:', e.message);
+      detectedPages = 1;
+    }
+  } else {
+    detectedPages = 1; // images / other files count as 1 page
+  }
+  document.getElementById('pages-detected').textContent = detectedPages;
+  document.getElementById('pages-info-row').style.display = 'flex';
+
+  txt.textContent = `✓ ${file.name} (${detectedPages} ${detectedPages===1 ? 'page' : 'pages'})`;
+
+  const path = `${mobile}/${Date.now()}-${file.name}`;
+  const { data, error } = await sb.storage.from(STORAGE_BUCKET).upload(path, file);
+  if(error){ txt.textContent = 'Upload failed: ' + error.message; box.classList.remove('filled'); return; }
+  uploadedFilePath = path;
+  document.getElementById('print-pay-btn').disabled = false;
+  refreshAllPriceDisplays();
+}
+
+/* ============================================================
+   PAYMENT
+   ============================================================ */
+let pendingAmount = 0;
+function goToPay(service){
+  currentService = service;
+  const unit = priceForService(service);
+  pendingAmount = unit * (service==='print' || service==='copy' ? copies : 1);
+  document.getElementById('pay-amount').textContent = '₹' + pendingAmount.toFixed(2);
+  renderQR(pendingAmount);
+  go('s-pay');
+}
+
+function renderQR(amount){
+  const upiLink = `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent('FYNTAS Printer Order')}`;
+  const el = document.getElementById('qrcode');
+  el.innerHTML = '';
+  new QRCode(el, { text: upiLink, width:172, height:172, colorDark:'#0C0D10', colorLight:'#ffffff', correctLevel: QRCode.CorrectLevel.M });
+}
+
+async function confirmPayment(){
+  const { data, error } = await sb.from('jobs').insert({
+    kiosk_id: KIOSK_ID,
+    mobile: mobile,
+    service_type: currentService,
+    file_path: uploadedFilePath,
+    copies: copies,
+    // pages/duplex only matter for real multi-page PDFs (the Print flow).
+    // ID Card copies are ALWAYS 1 page/1 sheet — front+back are composed
+    // onto a single A4 page (see the layout step), not two separate pages.
+    // Never let ID Card jobs inherit detectedPages/duplexMode from a
+    // previous Print job — they must stay fixed at pages:1, duplex:false.
+    pages: currentService === 'print' ? detectedPages : 1,
+    duplex: currentService === 'print' ? (duplexMode === 'double') : false,
+    color_mode: colorMode,
+    paper_size: 'A4',
+    layout: layout,
+    amount: pendingAmount,
+    status: 'paid'
+  }).select().single();
+
+  if(error){ alert('Order create failed: ' + error.message); return; }
+  currentJobId = data.id;
+  startProcessAnimation(); // decides itself: queue screen (if others are ahead) or processing screen
+}
+
+/* ============================================================
+   PROCESS ANIMATION — polls Supabase job status live
+   ============================================================ */
+const STAGE_ORDER = ['paid','processing','printing','printed','ready'];
+
+function stageIndexFor(status){
+  if(status === 'paid') return 0;
+  if(status === 'processing') return 1;
+  if(status === 'printing' || status === 'uploading') return 2;
+  if(status === 'printed' || status === 'ready') return 3;
+  return 0;
+}
+
+function updateProcessUI(status){
+  const idx = stageIndexFor(status);
+  const isScanLike = (currentService === 'scan') || (currentService === 'id_card' && output === 'pdf');
+
+  document.getElementById('tn-2-label').textContent = isScanLike ? 'Scanning' : 'Printer';
+
+  const labelsHi = ['ऑर्डर मिल गया', 'क्लाउड में प्रोसेस हो रहा है', isScanLike ? 'स्कैन हो रहा है' : 'प्रिंटर प्रिंट कर रहा है', 'तैयार है!'];
+  const titlesHi = ['ऑर्डर मिल गया...', 'प्रोसेस हो रहा है...', isScanLike ? 'स्कैन हो रहा है...' : 'प्रिंट हो रहा है...', 'पूर्ण हुआ!'];
+  const titlesEn = ['Order received...', 'Processing...', isScanLike ? 'Scanning...' : 'Printing...', 'Complete!'];
+  const labelsEn = ['Order received', 'Processing in the cloud', isScanLike ? 'Scanning your document' : 'Printer is printing', 'Ready!'];
+  const icons = ['📤','☁️', isScanLike ? '📠' : '🖨️', '✅'];
+
+  document.getElementById('proc-icon').textContent = icons[idx];
+  document.getElementById('proc-sub-hi').textContent = labelsHi[idx];
+  document.getElementById('proc-sub-en').textContent = labelsEn[idx];
+  document.getElementById('proc-title').textContent = titlesHi[idx];
+  document.getElementById('proc-title-en').textContent = titlesEn[idx];
+
+  for(let i=0;i<4;i++){
+    const node = document.getElementById('tn-'+i);
+    node.classList.toggle('done', i < idx);
+    node.classList.toggle('active', i === idx);
+  }
+  document.getElementById('trail-fill').style.width = (idx/3*100) + '%';
+}
+
+function startProcessAnimation(){
+  clearInterval(pollTimer);
+  checkStatusAndRender(); // immediate first check
+  pollTimer = setInterval(checkStatusAndRender, 2000);
+}
+
+const AVG_JOB_SECONDS = 45; // rough estimate used for "estimated wait" — tune to your real average print time
+
+async function checkStatusAndRender(){
+  const { data: job, error } = await sb.from('jobs').select('*').eq('id', currentJobId).single();
+  if(error || !job) return;
+
+  if(job.status === 'paid'){
+    // ---- Still waiting: figure out this job's position in the FIFO queue at THIS kiosk ----
+    const { data: queueJobs } = await sb.from('jobs')
+      .select('id, created_at')
+      .eq('kiosk_id', KIOSK_ID)
+      .in('status', ['paid','processing'])
+      .order('created_at', { ascending: true });
+
+    const position = queueJobs ? (queueJobs.findIndex(j => j.id === currentJobId) + 1) : 1;
+
+    if(position > 1){
+      renderQueueScreen(position);
+      return;
+    }
+    // position === 1 means this job is next up — fall through to show the
+    // normal processing animation (agent will pick it up within a few seconds)
+  }
+
+  if(document.getElementById('s-queue').classList.contains('active')){
+    go('s-process');
+  } else if(!document.getElementById('s-process').classList.contains('active') &&
+            !document.getElementById('s-result').classList.contains('active') &&
+            !document.getElementById('s-thankyou').classList.contains('active')){
+    go('s-process');
+  }
+
+  updateProcessUI(job.status);
+
+  if(job.status === 'ready' && job.result_path){
+    clearInterval(pollTimer);
+    const { data: urlData } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(job.result_path);
+    document.getElementById('pdf-frame').src = urlData.publicUrl;
+    window.__resultUrl = urlData.publicUrl;
+    setTimeout(()=> go('s-result'), 700);
+  } else if(job.status === 'printed'){
+    clearInterval(pollTimer);
+    setTimeout(()=> go('s-thankyou'), 700);
+  } else if(job.status === 'failed'){
+    clearInterval(pollTimer);
+    alert('Kuch galat ho gaya, kiosk staff se sampark karein / Something went wrong, please contact kiosk staff.');
+    go('s-dashboard');
+  }
+}
+
+async function renderQueueScreen(position){
+  if(!document.getElementById('s-queue').classList.contains('active')) go('s-queue');
+  document.getElementById('queue-pos').textContent = position;
+  const waitSecs = (position - 1) * AVG_JOB_SECONDS;
+  const waitLabel = waitSecs >= 60 ? `~${Math.round(waitSecs/60)} min` : `~${waitSecs}s`;
+  document.getElementById('queue-wait-hi').textContent = `अनुमानित इंतज़ार: ${waitLabel}`;
+  document.getElementById('queue-wait-en').textContent = `Estimated wait: ${waitLabel}`;
+
+  // If this kiosk is stuck on paper/toner, let the customer know why (from the kiosks table)
+  try{
+    const { data: kiosk } = await sb.from('kiosks').select('paper_remaining, toner_remaining').eq('kiosk_id', KIOSK_ID).single();
+    const alertEl = document.getElementById('queue-alert');
+    if(kiosk && (kiosk.paper_remaining <= 0 || kiosk.toner_remaining <= 0)){
+      alertEl.style.display = 'block';
+      alertEl.innerHTML = 'इस कियॉस्क में पेपर/टोनर खत्म हो रहा है, स्टाफ जल्द भर रहा है।<br><i style="opacity:.8">This kiosk is low on paper/toner — staff is refilling it shortly.</i>';
+    } else {
+      alertEl.style.display = 'none';
+    }
+  }catch(e){ /* kiosks table optional for the public site — ignore errors */ }
+}
+
+/* ============================================================
+   SHARE (Web Share API — works for WhatsApp, Email, etc. on mobile)
+   ============================================================ */
+async function shareResult(){
+  const url = window.__resultUrl;
+  if(!url) return;
+  try{
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const file = new File([blob], 'fyntas-scan.pdf', { type:'application/pdf' });
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title:'FYNTAS Printer Scan' });
+    } else {
+      await navigator.share({ url, title:'FYNTAS Printer Scan' });
+    }
+  }catch(e){
+    alert('Share is not supported on this browser — use Download instead.');
+  }
+}
+function shareWhatsapp(){
+  const url = window.__resultUrl; if(!url) return;
+  window.open(`https://wa.me/?text=${encodeURIComponent('My scanned document: ' + url)}`, '_blank');
+}
+function shareEmail(){
+  const url = window.__resultUrl; if(!url) return;
+  window.location.href = `mailto:?subject=Your scanned document&body=${encodeURIComponent('Here is your document: ' + url)}`;
+}
+function downloadResult(){
+  const url = window.__resultUrl; if(!url) return;
+  window.open(url, '_blank');
+}
+</script>
+</body>
+</html>

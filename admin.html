@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FYNTAS PRINTER — Admin Panel</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root{
+  --ink:#0A0A0D; --ink-2:#16171D; --ink-3:#1C1E26; --paper:#F6F2E8;
+  --brass:#D4AF6A; --brass-2:#C9A24B; --scan:#5FE0C6;
+  --red:#D2603F; --green:#5FCB7D; --amber:#E0A93F;
+  --text-secondary:#CFCBC0; --muted:#9B988E; --line: rgba(246,242,232,0.14);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background:
+    radial-gradient(circle at 18% -8%, rgba(212,175,106,0.08), transparent 42%),
+    radial-gradient(circle at 85% 105%, rgba(95,224,198,0.05), transparent 45%),
+    radial-gradient(ellipse at top, #1D1F26 0%, var(--ink) 65%);
+  font-family:'Space Grotesk', sans-serif; color:var(--paper); min-height:100vh;
+}
+.mono{ font-family:'JetBrains Mono', monospace; }
+a{ color:inherit; }
+
+/* ---- LOGIN ---- */
+#login-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+.login-card{
+  width:100%; max-width:380px; background:linear-gradient(180deg, var(--ink-3), var(--ink-2));
+  border:1px solid rgba(212,175,106,0.25); border-radius:20px; padding:36px 30px;
+  box-shadow:0 30px 80px rgba(0,0,0,0.5);
+}
+.login-logo{ font-size:14px; letter-spacing:.3em; font-weight:700; color:var(--brass); margin-bottom:6px;}
+.login-logo span{ color:var(--paper); }
+.login-title{ font-size:22px; font-weight:700; margin-bottom:22px; }
+.field{ margin-bottom:16px; }
+.field label{ display:block; font-size:11.5px; color:var(--text-secondary); margin-bottom:6px; }
+.field input{
+  width:100%; border:1.5px solid var(--line); background:rgba(255,255,255,0.03); color:var(--paper);
+  border-radius:10px; padding:13px 14px; font-size:14px; outline:none; font-family:'Space Grotesk',sans-serif;
+}
+.field input:focus{ border-color:var(--brass); }
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  background:linear-gradient(135deg, var(--brass) 0%, var(--brass-2) 65%, #B8903D 100%);
+  color:var(--ink); border:none; border-radius:10px; padding:13px 22px;
+  font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; cursor:pointer;
+  box-shadow:0 8px 20px rgba(212,175,106,0.25); transition: filter .15s ease, transform .1s ease;
+}
+.btn:hover{ filter:brightness(1.06); }
+.btn:active{ transform:scale(0.97); }
+.btn.full{ width:100%; }
+.btn.outline{ background:transparent; border:1.5px solid rgba(246,242,232,0.3); color:var(--paper); box-shadow:none; }
+.btn.small{ padding:8px 14px; font-size:12.5px; }
+.btn.danger{ background:linear-gradient(135deg,#E07A5F,#D2603F); box-shadow:0 8px 20px rgba(210,96,63,0.25); }
+.error-msg{ color:var(--red); font-size:12.5px; margin-top:10px; text-align:center; }
+
+/* ---- APP SHELL ---- */
+#app-screen{ display:none; }
+.topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 32px; border-bottom:1px solid var(--line);
+  background:rgba(255,255,255,0.02); position:sticky; top:0; z-index:20; backdrop-filter:blur(10px);
+}
+.brand{ display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.08em; font-size:14px;}
+.brand .dot{ width:7px; height:7px; border-radius:50%; background:var(--brass); }
+.topbar-right{ display:flex; align-items:center; gap:14px; font-size:12.5px; color:var(--text-secondary); }
+
+.wrap{ max-width:1100px; margin:0 auto; padding:32px; }
+.section-title{ font-size:19px; font-weight:700; margin-bottom:4px; }
+.section-sub{ font-size:12.5px; color:var(--text-secondary); margin-bottom:20px; }
+
+/* ---- PRICING CARD ---- */
+.panel{
+  background:linear-gradient(160deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015));
+  border:1px solid var(--line); border-radius:16px; padding:24px; margin-bottom:32px;
+}
+.price-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:16px; margin-bottom:18px; }
+.price-field label{ display:block; font-size:11px; color:var(--text-secondary); margin-bottom:6px; }
+.price-field .inp{
+  display:flex; align-items:center; gap:6px; border:1.5px solid var(--line); background:rgba(255,255,255,0.03);
+  border-radius:10px; padding:10px 12px;
+}
+.price-field .inp span{ color:var(--brass); font-weight:700; font-family:'JetBrains Mono',monospace; }
+.price-field input{ border:none; background:transparent; color:var(--paper); font-size:15px; width:100%; outline:none; font-family:'JetBrains Mono',monospace; }
+.save-status{ font-size:12px; color:var(--green); }
+
+/* ---- LOCATIONS GRID ---- */
+.loc-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(320px,1fr)); gap:18px; }
+.loc-card{
+  background:linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
+  border:1px solid var(--line); border-radius:16px; padding:20px; position:relative;
+}
+.loc-head{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
+.loc-name{ font-weight:700; font-size:15px; margin-bottom:2px; }
+.loc-id{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--brass); }
+.status-badge{ font-size:9.5px; font-family:'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.08em; padding:3px 8px; border-radius:20px; font-weight:700; }
+.status-badge.active{ background:rgba(95,203,125,0.15); color:var(--green); }
+.status-badge.offline{ background:rgba(210,96,63,0.15); color:var(--red); }
+.status-badge.maintenance{ background:rgba(224,169,63,0.15); color:var(--amber); }
+
+.printer-line{ font-size:12px; color:var(--text-secondary); margin-bottom:12px; display:flex; align-items:center; gap:6px;}
+.loc-stats{ display:flex; gap:16px; margin-bottom:16px; padding:10px 12px; background:rgba(255,255,255,0.03); border-radius:10px; }
+.loc-stats .stat{ flex:1; }
+.loc-stats .stat .n{ font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; color:var(--paper); }
+.loc-stats .stat .l{ font-size:9.5px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+.loc-stats .stat.alert .n{ color:var(--amber); }
+
+.gauge-block{ margin-bottom:14px; }
+.gauge-label{ display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:6px; }
+.gauge-label b{ color:var(--paper); font-weight:600; }
+.gauge-label .count{ font-family:'JetBrains Mono',monospace; color:var(--text-secondary); }
+.gauge-track{ height:8px; background:rgba(255,255,255,0.06); border-radius:6px; overflow:hidden; }
+.gauge-fill{ height:100%; border-radius:6px; transition: width .4s ease; }
+.gauge-fill.ok{ background:linear-gradient(90deg, var(--green), #4bb568); }
+.gauge-fill.low{ background:linear-gradient(90deg, var(--amber), #c98f2e); }
+.gauge-fill.critical{ background:linear-gradient(90deg, var(--red), #b8452e); }
+
+.loc-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; }
+
+/* ---- MODAL ---- */
+.modal-backdrop{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px);}
+.modal-backdrop.active{ display:flex; }
+.modal{ background:linear-gradient(180deg, var(--ink-3), var(--ink-2)); border:1px solid rgba(212,175,106,0.25); border-radius:18px; padding:28px; width:100%; max-width:420px; max-height:90vh; overflow-y:auto; }
+.modal h3{ font-size:17px; margin-bottom:18px; }
+.modal .field{ margin-bottom:14px; }
+.modal-actions{ display:flex; gap:10px; margin-top:20px; }
+
+.qr-box{ background:#fff; border-radius:12px; padding:16px; display:flex; align-items:center; justify-content:center; margin:14px 0; }
+
+.add-loc-btn{ margin-bottom:20px; }
+
+/* ---- LIVE QUEUE PANEL ---- */
+.queue-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+.queue-table th{ text-align:left; padding:8px 10px; color:var(--text-secondary); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.05em; border-bottom:1px solid var(--line); }
+.queue-table td{ padding:9px 10px; border-bottom:1px solid rgba(255,255,255,0.04); }
+.queue-status-pill{ font-size:10.5px; font-family:'JetBrains Mono',monospace; padding:3px 8px; border-radius:20px; font-weight:700; text-transform:uppercase; }
+.queue-status-pill.printing{ background:rgba(95,224,198,0.15); color:var(--scan); }
+.queue-status-pill.waiting{ background:rgba(224,169,63,0.15); color:var(--amber); }
+.empty-note{ color:var(--text-secondary); font-size:12.5px; padding:14px 0; }
+
+/* ---- ADD PAPER/TONER MODAL EXTRAS ---- */
+.qty-input{ display:flex; align-items:center; gap:8px; border:1.5px solid var(--line); background:rgba(255,255,255,0.03); border-radius:10px; padding:10px 12px; margin-bottom:6px; }
+.qty-input input{ border:none; background:transparent; color:var(--paper); font-size:15px; width:100%; outline:none; font-family:'JetBrains Mono',monospace; }
+.qty-hint{ font-size:11px; color:var(--text-secondary); margin-bottom:14px; }
+
+.log-table{ width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
+.log-table th{ text-align:left; padding:7px 10px; color:var(--text-secondary); font-weight:600; font-size:10.5px; text-transform:uppercase; border-bottom:1px solid var(--line); }
+.log-table td{ padding:8px 10px; border-bottom:1px solid rgba(255,255,255,0.04); color:var(--text-secondary); }
+.log-table td.item-paper{ color:var(--brass); }
+.log-table td.item-toner{ color:var(--scan); }
+
+.toast{
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:var(--ink-3); border:1px solid rgba(212,175,106,0.3); color:var(--paper);
+  padding:12px 20px; border-radius:10px; font-size:13px; z-index:200; display:none;
+  box-shadow:0 10px 30px rgba(0,0,0,0.4);
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo"><span>FYNTAS</span> PRINTER</div>
+    <div class="login-title">Admin Panel Login</div>
+    <div class="field"><label>Email</label><input type="email" id="admin-email" placeholder="admin@fyntasprinter.com"></div>
+    <div class="field"><label>Password</label><input type="password" id="admin-password" placeholder="••••••••"></div>
+    <button class="btn full" onclick="login()">Login</button>
+    <div class="error-msg" id="login-error"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen">
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span>FYNTAS <span style="font-weight:400;color:var(--text-secondary);">Admin</span></div>
+    <div class="topbar-right">
+      <span id="admin-email-label"></span>
+      <button class="btn outline small" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- PRICING -->
+    <div class="section-title">Pricing</div>
+    <div class="section-sub">Yahan se price badlein — website par turant apply ho jayega, koi code change nahi karna padega.</div>
+    <div class="panel">
+      <div class="price-grid">
+        <div class="price-field"><label>Print · B/W (per copy)</label><div class="inp"><span>₹</span><input type="number" id="price-print_bw" step="0.5"></div></div>
+        <div class="price-field"><label>Print · Color (per copy)</label><div class="inp"><span>₹</span><input type="number" id="price-print_color" step="0.5"></div></div>
+        <div class="price-field"><label>Scan (per page)</label><div class="inp"><span>₹</span><input type="number" id="price-scan" step="0.5"></div></div>
+        <div class="price-field"><label>Xerox / Copy (per copy)</label><div class="inp"><span>₹</span><input type="number" id="price-copy" step="0.5"></div></div>
+        <div class="price-field"><label>ID Card Copy (front+back)</label><div class="inp"><span>₹</span><input type="number" id="price-id_card" step="0.5"></div></div>
+      </div>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <button class="btn" onclick="savePricing()">Save Pricing</button>
+        <span class="save-status" id="pricing-status"></span>
+      </div>
+    </div>
+
+    <!-- LIVE QUEUE -->
+    <div class="section-title">Live Queue</div>
+    <div class="section-sub">Sabhi locations ke abhi ke active/waiting orders — automatically FIFO order mein print honge.</div>
+    <div class="panel">
+      <div id="queue-panel-content"><div class="empty-note">Loading...</div></div>
+    </div>
+
+    <!-- LOCATIONS -->
+    <div class="section-title">Locations</div>
+    <div class="section-sub">Har location ka printer, paper, toner, queue aur aaj ki kamai yahan live dikhega. Naya location add karne ya printer badalne par yahin se QR bhi generate karein.</div>
+
+    <button class="btn add-loc-btn" onclick="openAddModal()">+ Add New Location</button>
+
+    <div class="loc-grid" id="loc-grid"></div>
+
+    <!-- RESTOCK LOG -->
+    <div class="section-title" style="margin-top:36px;">Restock Log</div>
+    <div class="section-sub">Paper/Toner kab-kab bhara gaya, poora record.</div>
+    <div class="panel">
+      <table class="log-table" id="log-table">
+        <thead><tr><th>Date</th><th>Location</th><th>Item</th><th>Qty</th><th>By</th></tr></thead>
+        <tbody id="log-tbody"><tr><td colspan="5" class="empty-note">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ADD PAPER / ADD TONER MODAL -->
+<div class="modal-backdrop" id="stock-modal">
+  <div class="modal">
+    <h3 id="stock-modal-title">Add Paper</h3>
+    <div id="stock-field-paper">
+      <div class="qty-input"><input type="number" id="stock-qty-paper" placeholder="500"></div>
+      <div class="qty-hint" id="stock-hint-paper">Kitne sheets tray mein daale? Ye maujooda count mein jud jayega.</div>
+    </div>
+    <div id="stock-field-toner" style="display:none;">
+      <div class="qty-input"><input type="number" id="stock-qty-toner" placeholder="100" max="100" min="0"><span style="color:var(--text-secondary);font-size:13px;">%</span></div>
+      <div class="qty-hint">Naya toner laga hai to kitna % bacha hai? (Full naya toner = 100)</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn outline" style="flex:1" onclick="closeStockModal()">Cancel</button>
+      <button class="btn" style="flex:1" onclick="saveStock()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT LOCATION MODAL -->
+<div class="modal-backdrop" id="loc-modal">
+  <div class="modal">
+    <h3 id="modal-title">Add Location</h3>
+    <div class="field"><label>Location ID (QR mein use hoga, ek baar set hone ke baad na badlein)</label><input type="text" id="m-kiosk-id" placeholder="LOC-01"></div>
+    <div class="field"><label>Location Name</label><input type="text" id="m-name" placeholder="Connaught Place, Delhi"></div>
+    <div class="field"><label>Printer Name (agent ke .env mein jo daala hai, wahi exact naam)</label><input type="text" id="m-printer" placeholder="HP_LaserJet_MFP_1188fnw"></div>
+    <div class="field"><label>Paper Capacity (full tray, sheets)</label><input type="number" id="m-paper-cap" placeholder="200"></div>
+    <div class="field"><label>Toner Capacity (pages per toner)</label><input type="number" id="m-toner-cap" placeholder="1200"></div>
+    <div class="modal-actions">
+      <button class="btn outline" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn" style="flex:1" onclick="saveLocation()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- QR MODAL -->
+<div class="modal-backdrop" id="qr-modal">
+  <div class="modal" style="text-align:center;">
+    <h3 id="qr-title">QR Code</h3>
+    <div class="qr-box"><div id="qr-render"></div></div>
+    <div class="mono" style="font-size:11px;color:var(--text-secondary); word-break:break-all; margin-bottom:16px;" id="qr-url"></div>
+    <div class="modal-actions">
+      <button class="btn outline" style="flex:1" onclick="closeQrModal()">Close</button>
+      <button class="btn" style="flex:1" onclick="downloadQr()">Download PNG</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+// The live website's base URL — used to generate each location's QR code.
+const SITE_URL = 'https://yourusername.github.io/fyntas-printer/';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let kiosksCache = [];
+let editingKioskId = null;
+
+/* ============================================================
+   AUTH
+   ============================================================ */
+async function login(){
+  const email = document.getElementById('admin-email').value.trim();
+  const password = document.getElementById('admin-password').value;
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){ document.getElementById('login-error').textContent = 'Galat email/password / Invalid email or password'; return; }
+  enterApp(data.user.email);
+}
+
+async function logout(){
+  await sb.auth.signOut();
+  clearInterval(window.__dashboardRefresh);
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function enterApp(email){
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  document.getElementById('admin-email-label').textContent = email;
+  loadPricing();
+  loadKiosks();
+  clearInterval(window.__dashboardRefresh);
+  window.__dashboardRefresh = setInterval(loadKiosks, 15000); // live refresh every 15s
+}
+
+// auto-login if session already exists
+sb.auth.getSession().then(({ data }) => {
+  if(data.session) enterApp(data.session.user.email);
+});
+
+/* ============================================================
+   PRICING
+   ============================================================ */
+async function loadPricing(){
+  const { data, error } = await sb.from('settings').select('value').eq('key','pricing').single();
+  if(error || !data) return;
+  const p = data.value;
+  document.getElementById('price-print_bw').value = p.print_bw;
+  document.getElementById('price-print_color').value = p.print_color;
+  document.getElementById('price-scan').value = p.scan;
+  document.getElementById('price-copy').value = p.copy;
+  document.getElementById('price-id_card').value = p.id_card;
+}
+
+async function savePricing(){
+  const value = {
+    print_bw: +document.getElementById('price-print_bw').value,
+    print_color: +document.getElementById('price-print_color').value,
+    scan: +document.getElementById('price-scan').value,
+    copy: +document.getElementById('price-copy').value,
+    id_card: +document.getElementById('price-id_card').value,
+  };
+  const { error } = await sb.from('settings').update({ value }).eq('key','pricing');
+  const statusEl = document.getElementById('pricing-status');
+  if(error){ statusEl.style.color='var(--red)'; statusEl.textContent = 'Save failed: ' + error.message; return; }
+  statusEl.style.color = 'var(--green)';
+  statusEl.textContent = '✓ Saved — website par turant apply ho gaya';
+  setTimeout(()=> statusEl.textContent = '', 3000);
+  showToast('Pricing updated');
+}
+
+/* ============================================================
+   LOCATIONS / KIOSKS
+   ============================================================ */
+function autoStatus(k){
+  const paperPct = k.paper_capacity > 0 ? k.paper_remaining / k.paper_capacity * 100 : 0;
+  const tonerPct = k.toner_capacity > 0 ? k.toner_remaining / k.toner_capacity * 100 : 0;
+  if(k.status === 'offline') return { label:'Offline', cls:'offline' };
+  if(k.status === 'maintenance') return { label:'Maintenance', cls:'maintenance' };
+  if(k.paper_remaining <= 0) return { label:'No Paper', cls:'offline' };
+  if(k.toner_remaining <= 0) return { label:'No Toner', cls:'offline' };
+  if(tonerPct <= 20) return { label:'Low Toner', cls:'maintenance' };
+  if(paperPct <= 20) return { label:'Low Paper', cls:'maintenance' };
+  return { label:'Ready', cls:'active' };
+}
+
+async function loadKiosks(){
+  const { data, error } = await sb.from('kiosks').select('*').order('kiosk_id');
+  if(error){ showToast('Error loading locations: ' + error.message); return; }
+  kiosksCache = data || [];
+  await renderKiosks();
+  loadQueue();
+  loadRestockLog();
+}
+
+function gaugeClass(remaining, capacity){
+  const pct = capacity > 0 ? (remaining/capacity*100) : 0;
+  if(pct <= 15) return 'critical';
+  if(pct <= 40) return 'low';
+  return 'ok';
+}
+
+async function renderKiosks(){
+  const grid = document.getElementById('loc-grid');
+  if(kiosksCache.length === 0){
+    grid.innerHTML = '<div style="color:var(--text-secondary); font-size:13px;">Abhi koi location add nahi hui hai. Upar "+ Add New Location" dabayein.</div>';
+    return;
+  }
+
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+
+  // fetch queue-count + today's earnings for every kiosk in parallel
+  const statsList = await Promise.all(kiosksCache.map(async k => {
+    const [{ data: queueRows }, { data: todayRows }] = await Promise.all([
+      sb.from('jobs').select('id').eq('kiosk_id', k.kiosk_id).in('status', ['paid','processing','printing']),
+      sb.from('jobs').select('amount').eq('kiosk_id', k.kiosk_id).in('status', ['printed','ready']).gte('created_at', todayStart.toISOString()),
+    ]);
+    const queueCount = queueRows ? queueRows.length : 0;
+    const todayCount = todayRows ? todayRows.length : 0;
+    const todayAmount = todayRows ? todayRows.reduce((s,r)=> s + (r.amount||0), 0) : 0;
+    return { kiosk_id: k.kiosk_id, queueCount, todayCount, todayAmount };
+  }));
+  const statsMap = Object.fromEntries(statsList.map(s => [s.kiosk_id, s]));
+
+  grid.innerHTML = kiosksCache.map(k => {
+    const paperPct = Math.max(0, Math.min(100, k.paper_remaining / k.paper_capacity * 100));
+    const tonerPct = Math.max(0, Math.min(100, k.toner_remaining / k.toner_capacity * 100));
+    const paperCls = gaugeClass(k.paper_remaining, k.paper_capacity);
+    const tonerCls = gaugeClass(k.toner_remaining, k.toner_capacity);
+    const st = autoStatus(k);
+    const stats = statsMap[k.kiosk_id] || { queueCount:0, todayCount:0, todayAmount:0 };
+    return `
+      <div class="loc-card">
+        <div class="loc-head">
+          <div>
+            <div class="loc-name">${escapeHtml(k.name)}</div>
+            <div class="loc-id">${escapeHtml(k.kiosk_id)}</div>
+          </div>
+          <span class="status-badge ${st.cls}">${st.label}</span>
+        </div>
+        <div class="printer-line">🖨️ ${escapeHtml(k.printer_name || 'Not set')}</div>
+
+        <div class="loc-stats">
+          <div class="stat ${stats.queueCount>0?'alert':''}"><div class="n">${stats.queueCount}</div><div class="l">Queue</div></div>
+          <div class="stat"><div class="n">₹${stats.todayAmount}</div><div class="l">Today (${stats.todayCount})</div></div>
+        </div>
+
+        <div class="gauge-block">
+          <div class="gauge-label"><b>Paper</b><span class="count">${k.paper_remaining} / ${k.paper_capacity} sheets</span></div>
+          <div class="gauge-track"><div class="gauge-fill ${paperCls}" style="width:${paperPct}%"></div></div>
+        </div>
+        <div class="gauge-block">
+          <div class="gauge-label"><b>Toner</b><span class="count">${k.toner_remaining} / ${k.toner_capacity} pages (${Math.round(tonerPct)}%)</span></div>
+          <div class="gauge-track"><div class="gauge-fill ${tonerCls}" style="width:${tonerPct}%"></div></div>
+        </div>
+
+        <div class="loc-actions">
+          <button class="btn small" onclick="openStockModal('${k.kiosk_id}','paper')">+ Add Paper</button>
+          <button class="btn small" onclick="openStockModal('${k.kiosk_id}','toner')">+ Add Toner</button>
+          <button class="btn outline small" onclick="openEditModal('${k.kiosk_id}')">Edit</button>
+          <button class="btn outline small" onclick="openQrModal('${k.kiosk_id}')">QR Code</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---- Add Paper / Add Toner modal ---- */
+let stockModalKioskId = null, stockModalItem = null;
+function openStockModal(kioskId, item){
+  stockModalKioskId = kioskId; stockModalItem = item;
+  const k = kiosksCache.find(x=>x.kiosk_id===kioskId);
+  document.getElementById('stock-modal-title').textContent = (item==='paper' ? 'Add Paper — ' : 'Add Toner — ') + k.name;
+  document.getElementById('stock-field-paper').style.display = item==='paper' ? 'block' : 'none';
+  document.getElementById('stock-field-toner').style.display = item==='toner' ? 'block' : 'none';
+  document.getElementById('stock-qty-paper').value = k.paper_capacity;
+  document.getElementById('stock-qty-toner').value = 100;
+  document.getElementById('stock-modal').classList.add('active');
+}
+function closeStockModal(){ document.getElementById('stock-modal').classList.remove('active'); }
+
+async function saveStock(){
+  const k = kiosksCache.find(x=>x.kiosk_id===stockModalKioskId);
+  let qty, updatePayload;
+
+  if(stockModalItem === 'paper'){
+    qty = +document.getElementById('stock-qty-paper').value;
+    if(!qty || qty <= 0){ alert('Sahi sheets count daalein'); return; }
+    updatePayload = { paper_remaining: k.paper_remaining + qty };
+  } else {
+    const pct = +document.getElementById('stock-qty-toner').value;
+    if(pct === '' || pct < 0 || pct > 100){ alert('0-100 ke beech % daalein'); return; }
+    qty = pct;
+    updatePayload = { toner_remaining: Math.round(pct/100 * k.toner_capacity) };
+  }
+
+  const { error } = await sb.from('kiosks').update(updatePayload).eq('kiosk_id', stockModalKioskId);
+  if(error){ alert('Failed: ' + error.message); return; }
+
+  const { data: sessionData } = await sb.auth.getSession();
+  await sb.from('restock_log').insert({
+    kiosk_id: stockModalKioskId,
+    item: stockModalItem,
+    qty_added: qty,
+    added_by: sessionData.session ? sessionData.session.user.email : 'admin',
+  });
+
+  showToast(`${k.name} — ${stockModalItem} updated`);
+  closeStockModal();
+  loadKiosks();
+}
+
+/* ---- Live Queue panel ---- */
+async function loadQueue(){
+  const { data, error } = await sb.from('jobs')
+    .select('*')
+    .in('status', ['paid','processing','printing'])
+    .order('kiosk_id', { ascending: true })
+    .order('created_at', { ascending: true });
+
+  const el = document.getElementById('queue-panel-content');
+  if(error){ el.innerHTML = '<div class="empty-note">Error: ' + error.message + '</div>'; return; }
+  if(!data || data.length === 0){ el.innerHTML = '<div class="empty-note">Abhi koi active order nahi hai — sab kiosks free hain.</div>'; return; }
+
+  // number each kiosk's own queue 1,2,3...
+  const perKioskCounter = {};
+  const rows = data.map(j => {
+    perKioskCounter[j.kiosk_id] = (perKioskCounter[j.kiosk_id]||0) + 1;
+    const isPrinting = j.status === 'processing' || j.status === 'printing';
+    const time = new Date(j.created_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+    return `<tr>
+      <td>#${perKioskCounter[j.kiosk_id]}</td>
+      <td><span class="queue-status-pill ${isPrinting?'printing':'waiting'}">${isPrinting ? '🖨️ Printing' : '⏳ Waiting'}</span></td>
+      <td>${escapeHtml(j.kiosk_id)}</td>
+      <td>${escapeHtml(j.service_type)}</td>
+      <td>₹${j.amount}</td>
+      <td>${time}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `<table class="queue-table">
+    <thead><tr><th>#</th><th>Status</th><th>Location</th><th>Service</th><th>Amount</th><th>Time</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+/* ---- Restock Log ---- */
+async function loadRestockLog(){
+  const { data, error } = await sb.from('restock_log').select('*').order('created_at', { ascending:false }).limit(25);
+  const tbody = document.getElementById('log-tbody');
+  if(error){ tbody.innerHTML = `<tr><td colspan="5" class="empty-note">Error: ${error.message}</td></tr>`; return; }
+  if(!data || data.length === 0){ tbody.innerHTML = '<tr><td colspan="5" class="empty-note">Abhi koi restock record nahi hai.</td></tr>'; return; }
+  tbody.innerHTML = data.map(r => {
+    const date = new Date(r.created_at).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const qtyLabel = r.item === 'toner' ? `${r.qty_added}%` : `${r.qty_added} sheets`;
+    return `<tr>
+      <td>${date}</td>
+      <td>${escapeHtml(r.kiosk_id)}</td>
+      <td class="item-${r.item}">${r.item === 'toner' ? '🖨️ Toner' : '📄 Paper'}</td>
+      <td>${qtyLabel}</td>
+      <td>${escapeHtml(r.added_by || '—')}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ---- Add / Edit modal ---- */
+function openAddModal(){
+  editingKioskId = null;
+  document.getElementById('modal-title').textContent = 'Add Location';
+  document.getElementById('m-kiosk-id').value = '';
+  document.getElementById('m-kiosk-id').disabled = false;
+  document.getElementById('m-name').value = '';
+  document.getElementById('m-printer').value = '';
+  document.getElementById('m-paper-cap').value = 200;
+  document.getElementById('m-toner-cap').value = 1200;
+  document.getElementById('loc-modal').classList.add('active');
+}
+
+function openEditModal(kioskId){
+  const k = kiosksCache.find(x=>x.kiosk_id===kioskId);
+  editingKioskId = kioskId;
+  document.getElementById('modal-title').textContent = 'Edit Location';
+  document.getElementById('m-kiosk-id').value = k.kiosk_id;
+  document.getElementById('m-kiosk-id').disabled = true; // don't allow changing ID of an existing location (QR already printed)
+  document.getElementById('m-name').value = k.name;
+  document.getElementById('m-printer').value = k.printer_name || '';
+  document.getElementById('m-paper-cap').value = k.paper_capacity;
+  document.getElementById('m-toner-cap').value = k.toner_capacity;
+  document.getElementById('loc-modal').classList.add('active');
+}
+
+function closeModal(){ document.getElementById('loc-modal').classList.remove('active'); }
+
+async function saveLocation(){
+  const kiosk_id = document.getElementById('m-kiosk-id').value.trim();
+  const name = document.getElementById('m-name').value.trim();
+  const printer_name = document.getElementById('m-printer').value.trim();
+  const paper_capacity = +document.getElementById('m-paper-cap').value;
+  const toner_capacity = +document.getElementById('m-toner-cap').value;
+
+  if(!kiosk_id || !name){ alert('Location ID aur Name zaroori hain'); return; }
+
+  if(editingKioskId){
+    // Editing: only update name/printer/capacities. If capacity increased,
+    // remaining is left as-is (use Refill/New Toner buttons to top up).
+    const { error } = await sb.from('kiosks').update({ name, printer_name, paper_capacity, toner_capacity }).eq('kiosk_id', editingKioskId);
+    if(error){ alert('Failed: ' + error.message); return; }
+    showToast('Location updated');
+  } else {
+    const { error } = await sb.from('kiosks').insert({
+      kiosk_id, name, printer_name, paper_capacity, toner_capacity,
+      paper_remaining: paper_capacity, toner_remaining: toner_capacity, status: 'active'
+    });
+    if(error){ alert('Failed: ' + error.message); return; }
+    showToast('New location added — ab QR generate karke laga dein');
+  }
+  closeModal();
+  loadKiosks();
+}
+
+/* ---- QR modal ---- */
+function openQrModal(kioskId){
+  const url = `${SITE_URL}${SITE_URL.endsWith('/') ? '' : '/'}?kiosk=${encodeURIComponent(kioskId)}`;
+  document.getElementById('qr-title').textContent = 'QR — ' + kioskId;
+  document.getElementById('qr-url').textContent = url;
+  const el = document.getElementById('qr-render');
+  el.innerHTML = '';
+  new QRCode(el, { text: url, width: 220, height: 220, colorDark:'#0C0D10', colorLight:'#ffffff', correctLevel: QRCode.CorrectLevel.M });
+  document.getElementById('qr-modal').classList.add('active');
+}
+function closeQrModal(){ document.getElementById('qr-modal').classList.remove('active'); }
+
+function downloadQr(){
+  const canvas = document.querySelector('#qr-render canvas');
+  if(!canvas) return;
+  const link = document.createElement('a');
+  link.download = document.getElementById('qr-title').textContent.replace('QR — ','fyntas-qr-') + '.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+/* ---- toast ---- */
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.style.display = 'none', 3000);
+}
+</script>
+</body>
+</html>
